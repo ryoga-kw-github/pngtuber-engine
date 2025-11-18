@@ -1,0 +1,153 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <title>Mascot Clock Demo</title>
+  <style>
+    body {
+      margin: 0; padding: 0;
+      background: url('https://images.unsplash.com/photo-1493934558415-9d19f0b2b4d2?q=80&w=2054&auto=format&fit=crop') no-repeat center center fixed;
+      background-size: cover;
+      height: 100vh; overflow: hidden; font-family: sans-serif;
+    }
+
+    /* マスコットのコンテナ（右下固定） */
+    #mascot-wrapper {
+      position: fixed; bottom: 0; right: 20px;
+      width: 300px; height: 400px;
+      z-index: 100;
+    }
+    iframe { width: 100%; height: 100%; border: none; pointer-events: none; }
+
+    /* 吹き出し */
+    #bubble {
+      position: absolute; top: -60px; right: 50px;
+      background: #fff; border: 3px solid #333; border-radius: 15px;
+      padding: 15px 20px; min-width: 150px; text-align: center;
+      box-shadow: 2px 2px 10px rgba(0,0,0,0.2);
+      opacity: 0; transition: opacity 0.3s, transform 0.3s;
+      transform: translateY(10px); font-weight: bold; color: #333;
+    }
+    #bubble.show { opacity: 1; transform: translateY(0); }
+    /* 吹き出しのしっぽ */
+    #bubble::after {
+      content: ''; position: absolute; bottom: -10px; left: 50%;
+      border-width: 10px 10px 0; border-style: solid;
+      border-color: #333 transparent transparent transparent;
+    }
+
+    /* 時計表示 */
+    #clock-widget {
+      position: fixed; top: 20px; right: 20px;
+      background: rgba(0,0,0,0.6); color: #fff;
+      padding: 10px 20px; border-radius: 8px;
+      font-size: 2rem; font-family: monospace;
+    }
+    
+    /* クリック判定用の透明なカバー */
+    #click-area {
+      position: absolute; bottom: 0; width: 100%; height: 80%;
+      cursor: pointer;
+    }
+  </style>
+</head>
+<body>
+
+  <!-- 時計表示 -->
+  <div id="clock-widget">00:00:00</div>
+
+  <!-- マスコットエリア -->
+  <div id="mascot-wrapper">
+    <div id="bubble"></div>
+    <div id="click-area" onclick="mascot.poke()"></div>
+    <!-- 画像サイズを大きく見せるため fit=cover に設定 -->
+    <iframe id="tuber" src="essential-pngtuber.html?fit=cover&boundStrength=5"></iframe>
+  </div>
+
+<script>
+class MascotController {
+  constructor(iframeId) {
+    this.iframe = document.getElementById(iframeId);
+    this.bubble = document.getElementById('bubble');
+    this.pngtuber = null;
+    this.speakTimer = null;
+
+    this.iframe.onload = () => {
+      this.pngtuber = this.iframe.contentWindow.pngtuber;
+      
+      // 画像設定（適宜書き換えてください）
+      const path = 'img/'; 
+      this.pngtuber.setImages({
+        closedOpen: path + 'miku_normal.png',
+        openOpen:   path + 'miku_talk.png',
+        closedClosed: path + 'miku_blink.png',
+        openClosed:   path + 'miku_talk_blink.png'
+      });
+    };
+  }
+
+  // 喋らせる（テキストを表示して口をパクパク）
+  say(text, duration = 3000) {
+    if (!this.pngtuber) return;
+
+    // 吹き出し表示
+    this.bubble.innerText = text;
+    this.bubble.classList.add('show');
+
+    // 口パク開始
+    this.pngtuber.setSpeaking(true);
+
+    // 既存タイマーがあればキャンセル
+    if (this.speakTimer) clearTimeout(this.speakTimer);
+
+    // 一定時間後に停止
+    this.speakTimer = setTimeout(() => {
+      this.bubble.classList.remove('show');
+      this.pngtuber.setSpeaking(false);
+    }, duration);
+  }
+
+  // クリックされた時の反応
+  poke() {
+    const phrases = [
+      "わっ！びっくりしました。",
+      "仕事は順調ですか？",
+      "休憩も大事ですよ！",
+      "今日もかわいいですね！…私が。",
+      "えへへ。"
+    ];
+    const randomText = phrases[Math.floor(Math.random() * phrases.length)];
+    
+    // アクション：驚いて跳ねる
+    this.pngtuber.setConfig({ boundStrength: 20, boundSpeed: 2.0 });
+    this.say(randomText);
+    
+    // 少ししたら動きを戻す
+    setTimeout(() => {
+      this.pngtuber.setConfig({ boundStrength: 5, boundSpeed: 0.8 });
+    }, 500);
+  }
+}
+
+const mascot = new MascotController('tuber');
+
+// 時計ロジック
+setInterval(() => {
+  const now = new Date();
+  const timeStr = now.toLocaleTimeString('ja-JP');
+  document.getElementById('clock-widget').innerText = timeStr;
+
+  // 毎分00秒に時報
+  if (now.getSeconds() === 0) {
+    const min = now.getMinutes();
+    if (min === 0) {
+      mascot.say(`${now.getHours()}時になりましたよ！`);
+    } else {
+      mascot.say(`${min}分経過しました〜`);
+    }
+  }
+}, 1000);
+
+</script>
+</body>
+</html>

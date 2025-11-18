@@ -1,0 +1,228 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <title>PNGTuber Studio</title>
+  <style>
+    body {
+      margin: 0; background: #202124; color: #eee; font-family: sans-serif;
+      display: flex; height: 100vh; overflow: hidden;
+    }
+    /* 左：コントロール */
+    .sidebar {
+      width: 350px; padding: 20px; background: #2D2E31; overflow-y: auto;
+      box-shadow: 2px 0 10px rgba(0,0,0,0.5); display: flex; flex-direction: column; gap: 20px;
+    }
+    h2 { margin: 0 0 10px 0; font-size: 1.2rem; border-bottom: 1px solid #555; padding-bottom: 10px; }
+    
+    .group { background: #3C4043; padding: 15px; border-radius: 8px; }
+    .group-title { font-weight: bold; margin-bottom: 10px; display: block; font-size: 0.9rem; color: #8AB4F8; }
+    
+    label { display: block; font-size: 0.85rem; margin-bottom: 5px; color: #BDC1C6; }
+    input[type="text"], input[type="number"] {
+      width: 100%; background: #202124; border: 1px solid #5F6368; color: #fff;
+      padding: 6px; border-radius: 4px; box-sizing: border-box; margin-bottom: 10px;
+    }
+    input[type="range"] { width: 100%; margin-bottom: 10px; }
+    
+    /* 画像アップローダー */
+    .img-drop {
+      border: 2px dashed #5F6368; border-radius: 4px; padding: 10px; text-align: center;
+      cursor: pointer; transition: 0.2s; font-size: 0.8rem; position: relative;
+    }
+    .img-drop:hover { border-color: #8AB4F8; background: #303134; }
+    .img-drop img { max-width: 100%; max-height: 80px; display: none; margin: 0 auto; }
+    .img-drop.has-img img { display: block; }
+    .img-drop.has-img span { display: none; }
+
+    /* 右：プレビュー */
+    .main { flex: 1; display: flex; flex-direction: column; background: #171717; }
+    .preview-stage {
+      flex: 1; position: relative; display: flex; align-items: center; justify-content: center;
+      background-image: radial-gradient(#333 1px, transparent 1px); background-size: 20px 20px;
+    }
+    iframe { width: 500px; height: 500px; border: none; }
+
+    .actions { padding: 15px; background: #2D2E31; display: flex; gap: 10px; justify-content: flex-end; }
+    button {
+      padding: 10px 20px; border-radius: 4px; border: none; font-weight: bold; cursor: pointer;
+    }
+    .btn-primary { background: #8AB4F8; color: #202124; }
+    .btn-primary:hover { background: #AECBFA; }
+    .btn-sec { background: #3C4043; color: #fff; }
+    .btn-sec:hover { background: #4f5256; }
+
+    /* JSON出力モーダル */
+    #modal {
+      position: fixed; top:0; left:0; width:100%; height:100%; background: rgba(0,0,0,0.8);
+      display: none; align-items: center; justify-content: center; z-index: 100;
+    }
+    #modal.show { display: flex; }
+    .modal-content {
+      background: #2D2E31; padding: 20px; border-radius: 8px; width: 80%; max-width: 600px;
+    }
+    textarea { width: 100%; height: 300px; background: #171717; color: #81C995; border: none; padding: 10px; font-family: monospace; }
+  </style>
+</head>
+<body>
+
+<div class="sidebar">
+  <h2>PNGTuber Studio</h2>
+
+  <div class="group">
+    <span class="group-title">画像設定 (ドラッグ&ドロップ)</span>
+    <label>口閉じ・目開き (待機)</label>
+    <div class="img-drop" onclick="triggerFile('closedOpen')" ondrop="handleDrop(event, 'closedOpen')" ondragover="event.preventDefault()">
+      <span>画像を選択...</span><img id="prev_closedOpen">
+    </div>
+    <label>口開き・目開き (発話)</label>
+    <div class="img-drop" onclick="triggerFile('openOpen')" ondrop="handleDrop(event, 'openOpen')" ondragover="event.preventDefault()">
+      <span>画像を選択...</span><img id="prev_openOpen">
+    </div>
+    <label>口閉じ・目閉じ (瞬き)</label>
+    <div class="img-drop" onclick="triggerFile('closedClosed')" ondrop="handleDrop(event, 'closedClosed')" ondragover="event.preventDefault()">
+      <span>画像を選択...</span><img id="prev_closedClosed">
+    </div>
+    <label>口開き・目閉じ (発話瞬き)</label>
+    <div class="img-drop" onclick="triggerFile('openClosed')" ondrop="handleDrop(event, 'openClosed')" ondragover="event.preventDefault()">
+      <span>画像を選択...</span><img id="prev_openClosed">
+    </div>
+    <!-- Hidden Inputs -->
+    <input type="file" id="file_closedOpen" hidden onchange="handleFile(this, 'closedOpen')">
+    <input type="file" id="file_openOpen" hidden onchange="handleFile(this, 'openOpen')">
+    <input type="file" id="file_closedClosed" hidden onchange="handleFile(this, 'closedClosed')">
+    <input type="file" id="file_openClosed" hidden onchange="handleFile(this, 'openClosed')">
+  </div>
+
+  <div class="group">
+    <span class="group-title">動き設定</span>
+    <label>揺れの強さ (px): <span id="val_boundStrength">8</span></label>
+    <input type="range" min="0" max="50" value="8" oninput="updateVal('boundStrength', this.value)">
+    <label>揺れの速さ: <span id="val_boundSpeed">0.8</span></label>
+    <input type="range" min="0.1" max="3.0" step="0.1" value="0.8" oninput="updateVal('boundSpeed', this.value)">
+    <label>感度 (小さいほど敏感): <span id="val_threshold">0.02</span></label>
+    <input type="range" min="0.001" max="0.2" step="0.001" value="0.02" oninput="updateVal('threshold', this.value)">
+    <label>瞬き間隔 (秒): <span id="val_blinkInterval">4.0</span></label>
+    <input type="range" min="0.5" max="10" step="0.5" value="4.0" oninput="updateVal('blinkInterval', this.value)">
+  </div>
+  
+  <div class="group">
+    <span class="group-title">エクスポート用パス設定</span>
+    <label>画像の保存先フォルダパス (任意)</label>
+    <input type="text" id="exportPathPrefix" placeholder="例: img/avatar01/" value="">
+    <small style="color:#aaa;">※JSON書き出し時にファイル名の前につきます</small>
+  </div>
+</div>
+
+<div class="main">
+  <div class="preview-stage">
+    <iframe id="tuber" src="essential-pngtuber.html"></iframe>
+  </div>
+  <div class="actions">
+    <button class="btn-sec" onclick="toggleMic()">🎤 マイクテスト</button>
+    <button class="btn-primary" onclick="exportJson()">💾 JSON書き出し</button>
+  </div>
+</div>
+
+<div id="modal" onclick="if(event.target===this)this.classList.remove('show')">
+  <div class="modal-content">
+    <h3>config.json</h3>
+    <p>この内容を .json ファイルとして保存し、<br><code>essential-pngtuber.html?config=保存したファイル名</code> で呼び出せます。</p>
+    <textarea id="jsonOutput" readonly></textarea>
+    <div style="text-align:right; margin-top:10px;">
+      <button class="btn-sec" onclick="document.getElementById('modal').classList.remove('show')">閉じる</button>
+      <button class="btn-primary" onclick="copyJson()">コピー</button>
+    </div>
+  </div>
+</div>
+
+<script>
+  const iframe = document.getElementById('tuber');
+  let pngtuber = null;
+  let micOn = false;
+
+  // 設定状態保持
+  const config = {
+    images: { closedOpen: null, openOpen: null, closedClosed: null, openClosed: null },
+    // ファイル名だけ保持（エクスポート用）
+    filenames: { closedOpen: '', openOpen: '', closedClosed: '', openClosed: '' },
+    boundStrength: 8,
+    boundSpeed: 0.8,
+    threshold: 0.02,
+    blinkInterval: 4.0
+  };
+
+  iframe.onload = () => {
+    pngtuber = iframe.contentWindow.pngtuber;
+  };
+
+  // UI操作系
+  function triggerFile(key) { document.getElementById('file_'+key).click(); }
+  
+  function handleFile(input, key) {
+    if (input.files && input.files[0]) setFile(input.files[0], key);
+  }
+
+  function handleDrop(e, key) {
+    e.preventDefault();
+    if (e.dataTransfer.files && e.dataTransfer.files[0]) setFile(e.dataTransfer.files[0], key);
+  }
+
+  function setFile(file, key) {
+    // 1. プレビュー用（Blob URL）
+    const url = URL.createObjectURL(file);
+    document.getElementById('prev_'+key).src = url;
+    document.getElementById('prev_'+key).parentElement.classList.add('has-img');
+    
+    // 2. PNGTuberに反映
+    config.images[key] = url;
+    const update = {}; update[key] = url;
+    if(pngtuber) pngtuber.setImages(update);
+
+    // 3. エクスポート用ファイル名記録
+    config.filenames[key] = file.name;
+  }
+
+  function updateVal(key, val) {
+    const num = parseFloat(val);
+    document.getElementById('val_'+key).innerText = num;
+    config[key] = num;
+    const update = {}; update[key] = num;
+    if(pngtuber) pngtuber.setConfig(update);
+  }
+
+  function toggleMic() {
+    if(!pngtuber) return;
+    if(micOn) { pngtuber.stopMicrophone(); micOn = false; }
+    else { pngtuber.startMicrophone(); micOn = true; }
+  }
+
+  function exportJson() {
+    const prefix = document.getElementById('exportPathPrefix').value;
+    
+    const exportData = {
+      images: {
+        closedOpen: prefix + (config.filenames.closedOpen || "image1.png"),
+        openOpen:   prefix + (config.filenames.openOpen || "image2.png"),
+        closedClosed: prefix + (config.filenames.closedClosed || "image3.png"),
+        openClosed:   prefix + (config.filenames.openClosed || "image4.png")
+      },
+      threshold: config.threshold,
+      blinkInterval: config.blinkInterval,
+      boundStrength: config.boundStrength,
+      boundSpeed: config.boundSpeed
+    };
+
+    document.getElementById('jsonOutput').value = JSON.stringify(exportData, null, 2);
+    document.getElementById('modal').classList.add('show');
+  }
+
+  function copyJson() {
+    const txt = document.getElementById('jsonOutput');
+    txt.select();
+    document.execCommand('copy');
+    alert("コピーしました！");
+  }
+</script>
+</body>
+</html>

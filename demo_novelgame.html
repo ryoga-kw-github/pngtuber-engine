@@ -1,0 +1,248 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <title>PNGTuber Novel Game Demo</title>
+  <link href="https://fonts.googleapis.com/css2?family=Zen+Maru+Gothic:wght@500;700&display=swap" rel="stylesheet">
+  <style>
+    body { margin: 0; padding: 0; background: #333; color: #fff; font-family: 'Zen Maru Gothic', sans-serif; overflow: hidden; }
+    
+    /* ゲーム画面のコンテナ */
+    #game-stage {
+      position: relative; width: 100vw; height: 100vh;
+      background: linear-gradient(to bottom, #87CEEB, #E0F7FA);
+      overflow: hidden;
+      cursor: pointer;
+    }
+
+    .bg-image {
+      position: absolute; top: 0; left: 0; width: 100%; height: 100%;
+      object-fit: cover; opacity: 0.5;
+    }
+
+    /* ▼▼ 修正箇所: 位置を上に調整 ▼▼ */
+    #character-layer {
+      position: absolute;
+      bottom: 120px; /* 以前は -50px でした。大幅に上げてウィンドウの上に顔が出るように */
+      left: 50%;
+      transform: translateX(-50%);
+      width: 600px;
+      height: 600px;
+      z-index: 10;
+      pointer-events: none;
+    }
+    /* ▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲ */
+
+    #tuber-frame {
+      width: 100%; height: 100%; border: none;
+    }
+
+    /* メッセージウィンドウ */
+    #message-window {
+      position: absolute;
+      bottom: 30px; left: 50%; transform: translateX(-50%);
+      width: 80%; max-width: 1000px; height: 180px;
+      background: rgba(0, 0, 0, 0.8); /* 少し濃くしました */
+      border: 4px solid #fff;
+      border-radius: 15px;
+      padding: 25px 40px;
+      box-sizing: border-box;
+      z-index: 20;
+      display: flex; flex-direction: column;
+      box-shadow: 0 10px 30px rgba(0,0,0,0.5);
+    }
+
+    #name-label {
+      font-size: 1.5rem; font-weight: bold; color: #FFD700;
+      margin-bottom: 10px; text-shadow: 2px 2px 0 #000;
+    }
+
+    #text-content {
+      font-size: 1.4rem; line-height: 1.6; flex: 1;
+    }
+
+    .cursor-blink::after {
+      content: "▼"; display: inline-block; margin-left: 10px;
+      animation: blink 1s infinite; color: #FFD700;
+    }
+    @keyframes blink { 0%,100%{opacity:1;} 50%{opacity:0;} }
+
+    .choice-container {
+      position: absolute; top: 40%; left: 50%; transform: translate(-50%, -50%);
+      display: flex; flex-direction: column; gap: 20px; z-index: 30;
+      display: none;
+    }
+    .btn-choice {
+      background: rgba(255,255,255,0.95); color: #333;
+      padding: 15px 60px; font-size: 1.5rem; font-weight: bold;
+      border: 3px solid #333; border-radius: 50px; cursor: pointer;
+      transition: 0.1s;
+    }
+    .btn-choice:hover { transform: scale(1.05); background: #fff; color: #0056b3; }
+
+  </style>
+</head>
+<body>
+
+<div id="game-stage">
+  <!-- 背景 -->
+  <div class="bg-image"></div>
+
+  <!-- キャラクター -->
+  <div id="character-layer">
+    <!-- 画像が中央に来るよう fit=contain を指定 -->
+    <iframe id="tuber-frame" src="essential-pngtuber.html?threshold=0.01&fit=contain" scrolling="no"></iframe>
+  </div>
+
+  <!-- UI -->
+  <div id="message-window">
+    <div id="name-label">？？？</div>
+    <div id="text-content">（画面をクリックしてスタート）</div>
+  </div>
+
+  <!-- 選択肢 -->
+  <div id="choice-area" class="choice-container">
+    <button class="btn-choice" onclick="game.jumpTo('A')">いいよ！</button>
+    <button class="btn-choice" onclick="game.jumpTo('B')">ちょっと忙しいかな...</button>
+  </div>
+</div>
+
+<script>
+/* --- エンジン部分は変更なし --- */
+class GameCharacter {
+  constructor(iframeId) {
+    this.iframe = document.getElementById(iframeId);
+    this.pngtuber = null;
+    this.isReady = false;
+    this.iframe.onload = () => {
+      if (this.iframe.contentWindow && this.iframe.contentWindow.pngtuber) {
+        this.pngtuber = this.iframe.contentWindow.pngtuber;
+        this.isReady = true;
+        // 初期表情
+        this.setExpression('normal');
+      }
+    };
+  }
+  setExpression(type) {
+    if (!this.isReady) return;
+    const pathBase = 'img/';
+
+    // 設定オブジェクトを作成
+    let config = {};
+    
+    if (type === 'normal') {
+      config = {
+        images: {
+          closedOpen:   pathBase + 'miku_normal.png',
+          openOpen:     pathBase + 'miku_talk.png',
+          closedClosed: pathBase + 'miku_blink.png',
+          openClosed:   pathBase + 'miku_talk_blink.png'
+        },
+        boundStrength: 8,
+        boundSpeed: 0.8
+      };
+    } else if (type === 'happy') {
+      config = {
+        images: {
+          /* 差分画像があれば指定 */
+          closedOpen:   pathBase + 'miku_normal.png',
+          openOpen:     pathBase + 'miku_talk.png',
+          /* ... */
+        },
+        boundStrength: 15, // 嬉しくて跳ねる
+        boundSpeed: 1.2
+      };
+    }
+    
+    // ★ここが変更点: setImagesを使わず、setConfigだけで一括更新
+    this.pngtuber.setConfig(config);
+  }
+  
+  setTalking(isTalking) { if (this.isReady) this.pngtuber.setSpeaking(isTalking); }
+  speakAudio(url) { if (this.isReady) this.pngtuber.loadAndPlayAudioFromUrl(url, false, false); }
+}
+
+class NovelEngine {
+  constructor(character) {
+    this.char = character;
+    this.textBox = document.getElementById('text-content');
+    this.nameBox = document.getElementById('name-label');
+    this.script = [];
+    this.currentIndex = -1;
+    this.isTyping = false;
+    this.typingTimer = null;
+  }
+  setScript(scriptData) { this.script = scriptData; this.currentIndex = -1; }
+  next() {
+    if (this.isTyping) { this.finishTyping(); return; }
+    this.currentIndex++;
+    if (this.currentIndex >= this.script.length) return;
+    const scene = this.script[this.currentIndex];
+    if (scene.type === 'choice') { document.getElementById('choice-area').style.display = 'flex'; return; }
+    this.playScene(scene);
+  }
+  playScene(scene) {
+    this.nameBox.innerText = scene.name;
+    this.nameBox.style.color = scene.name === '初音〇ク' ? '#FFD700' : '#FFF';
+    if (scene.expression) this.char.setExpression(scene.expression);
+    this.startTyping(scene.text, scene.voice);
+  }
+  startTyping(text, voiceUrl) {
+    this.isTyping = true;
+    this.textBox.innerHTML = '';
+    this.textBox.classList.remove('cursor-blink');
+    if (voiceUrl) { this.char.speakAudio(voiceUrl); this.textBox.innerText = text; }
+    let i = 0;
+    if (!voiceUrl) this.char.setTalking(true);
+    this.typingTimer = setInterval(() => {
+      this.textBox.innerText += text.charAt(i);
+      i++;
+      if (i >= text.length) this.finishTyping();
+    }, 50);
+  }
+  finishTyping() {
+    clearInterval(this.typingTimer);
+    const scene = this.script[this.currentIndex];
+    this.textBox.innerText = scene.text;
+    this.isTyping = false;
+    this.textBox.classList.add('cursor-blink');
+    if (!scene.voice) this.char.setTalking(false);
+  }
+  jumpTo(branch) {
+    document.getElementById('choice-area').style.display = 'none';
+    if (branch === 'A') {
+      this.script.push(
+        { name: '初音〇ク', text: 'わぁ！ありがとうございます！', expression: 'happy' },
+        { name: '初音〇ク', text: 'それじゃあ、準備運動から始めましょうか！' }
+      );
+    } else {
+      this.script.push(
+        { name: '初音〇ク', text: 'あ、そうですか...残念です。', expression: 'normal' },
+        { name: '初音〇ク', text: 'また気が向いたら声をかけてくださいね。' }
+      );
+    }
+    this.next();
+  }
+}
+
+const mikuChar = new GameCharacter('tuber-frame');
+const game = new NovelEngine(mikuChar);
+
+const scenarioData = [
+  { name: '初音〇ク', text: 'こんにちは！今日もいい天気ですね。', expression: 'normal' },
+  { name: '初音〇ク', text: 'これ、Essential PNGTuberを使ったデモ画面なんです。', expression: 'normal' },
+  { name: '初音〇ク', text: 'iframeとして「essential-pngtuber.html」を呼び出すだけでこんなことができるんです、ちゃんと顔が見えてますよね？', expression: 'happy' },
+  { name: '初音〇ク', text: 'どうですか？これならゲームにも使えそうですか？', expression: 'normal' },
+  { type: 'choice' }
+];
+
+game.setScript(scenarioData);
+
+document.getElementById('game-stage').addEventListener('click', (e) => {
+  if (e.target.classList.contains('btn-choice')) return;
+  game.next();
+});
+</script>
+
+</body>
+</html>

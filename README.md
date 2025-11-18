@@ -1,8 +1,8 @@
 # 📺 PNGTuber Engine
 
-**Webアプリ、ゲーム、配信画面に「ポン付け」できる、最強のPNGTuber埋め込みエンジン。**
+**Webアプリ、ゲーム、配信画面に「ポン付け」できる、PNGTuber埋め込みエンジン。**
 
-`pngtuber-engine` は、たった1つのHTMLファイル (`essential-pngtuber.html`) で動作する、軽量かつ高機能なアバター表示システムです。
+`pngtuber-engine` は、1つのHTMLファイル (`essential-pngtuber.html`) で動作する、軽量かつ高機能なアバター表示システムです。
 外部ライブラリへの依存は一切ありません（Vanilla JS 100%）。
 
 ## ✨ Features (特徴)
